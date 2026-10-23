@@ -1,0 +1,10 @@
+# Build output
+/dist/
+/bin/
+/cert-manager-webhook
+# Test tooling (envtest binaries, helm) downloaded by the Makefile
+/_bin/
+# Local scratch
+/temp/
+*.test
+coverage.out

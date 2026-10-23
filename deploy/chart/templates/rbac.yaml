@@ -1,0 +1,133 @@
+{{- $fullname := include "rdns-webhook.fullname" . -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+{{- if .Values.secretNames }}
+{{- range $namespace := (include "rdns-webhook.secretNamespaces" . | fromJsonArray) }}
+---
+# Read only the named token Secrets, one by one (no list or watch).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $fullname }}:secret-reader
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      {{- toYaml $.Values.secretNames | nindent 6 }}
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}:secret-reader
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $fullname }}:secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}
+    namespace: {{ $.Release.Namespace }}
+{{- end }}
+{{- end }}
+---
+# The aggregated API server reads the extension-apiserver-authentication
+# ConfigMap to authenticate the requests the Kubernetes API forwards.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $fullname }}:webhook-authentication-reader
+  namespace: kube-system
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}
+    namespace: {{ .Release.Namespace }}
+---
+# Delegated authentication and authorization (TokenReview,
+# SubjectAccessReview).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}:auth-delegator
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}
+    namespace: {{ .Release.Namespace }}
+---
+# The API server library watches the API Priority and Fairness objects.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}:flowcontrol-solver
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["flowcontrol.apiserver.k8s.io"]
+    resources: ["prioritylevelconfigurations", "flowschemas"]
+    verbs: ["list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}:flowcontrol-solver
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}:flowcontrol-solver
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}
+    namespace: {{ .Release.Namespace }}
+---
+# Lets cert-manager call the solver (create ChallengePayload objects in the
+# webhook's group).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $fullname }}:domain-solver
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [{{ .Values.groupName | quote }}]
+    resources: ["*"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $fullname }}:domain-solver
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $fullname }}:domain-solver
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.certManager.serviceAccountName }}
+    namespace: {{ .Values.certManager.namespace }}

@@ -1,0 +1,90 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # go-client is private until it is published: skip the public proxy and
+  # checksum database for the redundantdns modules and let git fetch them
+  # with a read-only token (repository secret REDUNDANTDNS_READ_TOKEN, a
+  # fine-grained PAT with Contents: read on redundantdns/go-client), passed
+  # to git by the "Download modules" step only. Remove both once go-client
+  # is public.
+  GOPRIVATE: github.com/redundantdns/*
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # The read token reaches git only through this step's environment
+      # (GIT_CONFIG_*), never the runner's global git config, so later
+      # steps (third-party actions included) cannot read it back.
+      - name: Download modules (private ones with the read token)
+        env:
+          GIT_CONFIG_COUNT: ${{ secrets.REDUNDANTDNS_READ_TOKEN != '' && '1' || '0' }}
+          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.REDUNDANTDNS_READ_TOKEN }}@github.com/redundantdns/.insteadOf
+          GIT_CONFIG_VALUE_0: https://github.com/redundantdns/
+        run: go mod download
+      - name: go vet
+        run: go vet ./... && go vet -tags conformance ./...
+      - name: go test
+        run: go test -race -count=1 ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+      - name: golangci-lint (conformance build tag)
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          args: --build-tags conformance
+      - name: govulncheck
+        # Reachable advisories in the standard library and the modules
+        # (symbol level); exact version, bumped by hand.
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - name: helm lint and template
+        # Downloads the pinned helm (checksum verified) into _bin/.
+        run: make helm-lint
+
+  # The cert-manager conformance suite against the go-client fake and an
+  # in-process DNS server (envtest control plane, pinned and checksummed).
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Download modules (private ones with the read token)
+        env:
+          GIT_CONFIG_COUNT: ${{ secrets.REDUNDANTDNS_READ_TOKEN != '' && '1' || '0' }}
+          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.REDUNDANTDNS_READ_TOKEN }}@github.com/redundantdns/.insteadOf
+          GIT_CONFIG_VALUE_0: https://github.com/redundantdns/
+        run: go mod download
+      - run: make test-conformance
+
+  # The image builds (no push); the release workflow publishes it.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          build-args: |
+            VERSION=ci
+            GOPRIVATE=github.com/redundantdns/*
+          secrets: |
+            netrc=machine github.com login x-access-token password ${{ secrets.REDUNDANTDNS_READ_TOKEN }}

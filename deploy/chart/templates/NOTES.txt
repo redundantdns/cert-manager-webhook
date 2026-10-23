@@ -1,0 +1,26 @@
+The RedundantDNS webhook is installed as solver "redundantdns" in group
+"{{ .Values.groupName }}".
+
+It may read these token Secrets: {{ join ", " .Values.secretNames }}
+in namespace(s): {{ join ", " (include "rdns-webhook.secretNamespaces" . | fromJsonArray) }}.
+
+Create the token Secret (a token from the "cert-manager (ACME DNS-01)"
+preset, bound to your zones):
+
+  kubectl -n {{ .Release.Namespace }} create secret generic {{ first .Values.secretNames | default "rdns-acme" }} --from-literal=token=rdns_...
+
+Then reference the solver from an Issuer or ClusterIssuer:
+
+  solvers:
+    - dns01:
+        webhook:
+          groupName: {{ .Values.groupName }}
+          solverName: redundantdns
+          config:
+            tokenSecretRef:
+              name: {{ first .Values.secretNames | default "rdns-acme" }}
+              key: token
+
+Check the APIService is available:
+
+  kubectl get apiservice v1alpha1.{{ .Values.groupName }}

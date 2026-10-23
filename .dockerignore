@@ -1,0 +1,8 @@
+.git
+.github
+_bin
+bin
+dist
+temp
+deploy
+*.test

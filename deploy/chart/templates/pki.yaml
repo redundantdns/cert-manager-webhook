@@ -1,0 +1,63 @@
+# The webhook's serving certificate, issued by cert-manager itself: a
+# self-signed issuer makes a CA, the CA issues the serving certificate, and
+# the APIService trusts the CA.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "rdns-webhook.selfSignedIssuer" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "rdns-webhook.rootCACertificate" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "rdns-webhook.rootCACertificate" . }}
+  duration: {{ .Values.pki.caDuration }}
+  issuerRef:
+    name: {{ include "rdns-webhook.selfSignedIssuer" . }}
+  commonName: "ca.{{ include "rdns-webhook.fullname" . }}.cert-manager"
+  isCA: true
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "rdns-webhook.rootCAIssuer" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ include "rdns-webhook.rootCACertificate" . }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "rdns-webhook.servingCertificate" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rdns-webhook.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "rdns-webhook.servingCertificate" . }}
+  duration: {{ .Values.pki.servingCertificateDuration }}
+  issuerRef:
+    name: {{ include "rdns-webhook.rootCAIssuer" . }}
+  dnsNames:
+    - {{ include "rdns-webhook.fullname" . }}
+    - {{ include "rdns-webhook.fullname" . }}.{{ .Release.Namespace }}
+    - {{ include "rdns-webhook.fullname" . }}.{{ .Release.Namespace }}.svc
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always

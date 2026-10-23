@@ -1,0 +1,85 @@
+name: release
+
+# On a v* tag: build and push the multi-arch image to ghcr (with SLSA
+# provenance and an SBOM attached), then package the Helm chart with the
+# image digest pinned and push it as an OCI artifact to
+# ghcr.io/redundantdns/charts/cert-manager-webhook. Needs
+# REDUNDANTDNS_READ_TOKEN while go-client is private.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/redundantdns/cert-manager-webhook
+  CHART_REPOSITORY: oci://ghcr.io/redundantdns/charts
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.licenses=Apache-2.0
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            GOPRIVATE=github.com/redundantdns/*
+          secrets: |
+            netrc=machine github.com login x-access-token password ${{ secrets.REDUNDANTDNS_READ_TOKEN }}
+          provenance: mode=max
+          sbom: true
+
+  chart:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.0
+      - name: Package the chart (image pinned by digest)
+        env:
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s|^  digest: \"\"|  digest: \"${DIGEST}\"|" deploy/chart/values.yaml
+          grep -q "digest: \"${DIGEST}\"" deploy/chart/values.yaml
+          helm lint --strict deploy/chart
+          helm package deploy/chart --version "$version" --app-version "$version" --destination dist
+      - name: Push the chart to ghcr
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+          helm push dist/cert-manager-webhook-*.tgz "$CHART_REPOSITORY"

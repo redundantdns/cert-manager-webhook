@@ -1,0 +1,25 @@
+apiVersion: v2
+name: cert-manager-webhook
+description: >-
+  cert-manager ACME DNS-01 webhook solver for RedundantDNS: presents the
+  challenge in the canonical zone and waits until every replicated provider
+  serves it.
+type: application
+# Chart and app versions move together; the release workflow sets both from
+# the git tag.
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/redundantdns/cert-manager-webhook
+sources:
+  - https://github.com/redundantdns/cert-manager-webhook
+keywords:
+  - cert-manager
+  - acme
+  - dns01
+  - redundantdns
+maintainers:
+  - name: RedundantDNS
+    url: https://redundantdns.com
+annotations:
+  licenses: Apache-2.0

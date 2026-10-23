@@ -1,0 +1,106 @@
+# API group of the webhook. An Issuer's dns01.webhook.groupName must match
+# it, and the APIService is named v1alpha1.<groupName>.
+groupName: acme.redundantdns.com
+
+# Default RedundantDNS API URL for Issuer configs without apiUrl (empty:
+# https://app.redundantdns.com). Self-hosted installs set it here once.
+apiUrl: ""
+
+image:
+  repository: ghcr.io/redundantdns/cert-manager-webhook
+  # Defaults to the chart's appVersion.
+  tag: ""
+  # sha256:... pins the image; when set it is used together with the tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+replicaCount: 2
+
+# Where cert-manager runs: its ServiceAccount is allowed to call the webhook.
+certManager:
+  namespace: cert-manager
+  serviceAccountName: cert-manager
+
+# The only Secrets the webhook may read (get by name): the ones the Issuer
+# configs reference in tokenSecretRef.
+secretNames:
+  - rdns-acme
+# Namespaces holding those Secrets: the cert-manager namespace for a
+# ClusterIssuer (cert-manager's --cluster-resource-namespace), the Issuer's
+# own namespace for an Issuer. Empty: the release namespace.
+secretNamespaces: []
+
+# klog verbosity of the webhook (2 logs every challenge and state change).
+logLevel: 2
+
+containerPort: 8443
+
+service:
+  type: ClusterIP
+  port: 443
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# Lifetimes of the webhook's own PKI, issued by cert-manager.
+pki:
+  caDuration: 43800h # 5 years
+  servingCertificateDuration: 8760h # 1 year
+
+networkPolicy:
+  enabled: true
+  # Egress to the RedundantDNS API. Kubernetes cannot match a hostname:
+  # narrow the CIDRs to the API's addresses (or your egress proxy) if you can.
+  api:
+    cidrs:
+      - 0.0.0.0/0
+      - ::/0
+    port: 443
+  # Egress to the Kubernetes API server (reading the token Secret and the
+  # delegated authentication/authorization of the aggregated API).
+  kubeAPIServer:
+    cidrs:
+      - 0.0.0.0/0
+      - ::/0
+    ports:
+      - 443
+      - 6443
+  # Ingress to the webhook port comes from the Kubernetes API server, whose
+  # source address a pod selector cannot match.
+  ingressCidrs:
+    - 0.0.0.0/0
+    - ::/0
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+priorityClassName: ""
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
