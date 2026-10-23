@@ -226,8 +226,10 @@ cert-manager's test package panics at init without the envtest binaries.
 - [ ] While go-client is private, add the repository secret
       `REDUNDANTDNS_READ_TOKEN` (fine-grained PAT, Contents: read on
       go-client); remove it and `GOPRIVATE` once go-client is public.
-- [ ] `make check test-conformance` green, and a run against a platform
-      with the ACME routes deployed.
+- [x] `make check test-conformance` green (fake mode), and the suite
+      against a platform all-in-one (`RDNS_E2E=1`, platform branch
+      `feat/acme-dns01`, fake provider and its nameservers): passed
+      2026-10-23. Repeat it against the dev environment once deployed.
 - [ ] Dogfood on our own cluster (staging Let's Encrypt first).
 - [ ] Update `CHANGELOG.md`, tag `vX.Y.Z`: the release workflow pushes the
       image (with provenance and SBOM) and the chart to ghcr.
