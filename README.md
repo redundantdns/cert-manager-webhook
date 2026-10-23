@@ -26,9 +26,10 @@ resolution path.
 
 You need cert-manager in the cluster (built and tested against v1.21).
 
-1. **Token.** In the dashboard, Settings, API tokens, choose the preset
-   "cert-manager (ACME DNS-01)", pick the zones, and optionally restrict it
-   to the cluster's egress IPs. Copy the token (`rdns_...`, shown once).
+1. **Token.** In the dashboard, API tokens, Create token, token type
+   "cert-manager (ACME DNS-01)": pick the zones, and optionally restrict it
+   to the cluster's egress IPs. ACME DNS-01 is available on every plan
+   (RedundantDNS v0.1.43 and later). Copy the token (`rdns_...`, shown once).
    The token has the `acme:challenge` scope only: it cannot read or change
    any other record.
 
@@ -43,7 +44,7 @@ You need cert-manager in the cluster (built and tested against v1.21).
 
    ```sh
    helm install rdns-webhook oci://ghcr.io/redundantdns/charts/cert-manager-webhook \
-     --namespace cert-manager --version <version>
+     --namespace cert-manager --version 0.1.0
    ```
 
    The webhook may read only the Secrets listed in `secretNames` (default
@@ -214,18 +215,14 @@ RDNS_API_URL=http://localhost:8080 RDNS_TOKEN=rdns_... \
 The conformance test is behind the `conformance` build tag because
 cert-manager's test package panics at init without the envtest binaries.
 
-## Before release
+## Releasing
 
-- [x] go-client's ACME methods merged (go-client #7) and pinned here by
-      pseudo-version (go-client is public: no token needed to fetch it).
-- [x] `make check test-conformance` green (fake mode), and the suite
-      against a platform all-in-one (`RDNS_E2E=1`, platform branch
-      `feat/acme-dns01`, fake provider and its nameservers): passed
-      2026-10-23. Repeat it against the dev environment once deployed.
-- [ ] Dogfood on our own cluster (staging Let's Encrypt first).
-- [ ] Update `CHANGELOG.md`, tag `vX.Y.Z`: the release workflow pushes the
-      image (with provenance and SBOM) and the chart to ghcr.
-- [ ] Make the ghcr image and chart packages public.
+Update `CHANGELOG.md` and push a `vX.Y.Z` tag: the release workflow pushes
+the multi-arch image (`ghcr.io/redundantdns/cert-manager-webhook`, with
+provenance and an SBOM) and the chart, with the image digest pinned, to
+`oci://ghcr.io/redundantdns/charts/cert-manager-webhook`. Before a tag,
+`make check test-conformance` and, for changes to the API calls, the
+conformance suite against a RedundantDNS deployment (see Development).
 
 ## License
 
