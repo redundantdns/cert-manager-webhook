@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/cert-manager/cert-manager v1.21.2
 	github.com/miekg/dns v1.1.72
-	github.com/redundantdns/go-client v0.0.0
+	github.com/redundantdns/go-client v0.0.0-20261023044124-899656eacc43
 	k8s.io/api v0.36.2
 	k8s.io/apiextensions-apiserver v0.36.2
 	k8s.io/apimachinery v0.36.2
@@ -118,9 +118,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// Local development only: builds against the go-client branch with the
-// ACME methods (feat/acme-dns01). Before a release, drop this line and pin
-// the pushed go-client commit by pseudo-version (see README, "Before
-// release"); the Dockerfile and CI cannot build while it is here.
-replace github.com/redundantdns/go-client => ../go-client-wt-acme

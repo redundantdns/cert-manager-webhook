@@ -216,16 +216,8 @@ cert-manager's test package panics at init without the envtest binaries.
 
 ## Before release
 
-- [ ] Push go-client's `feat/acme-dns01` and merge it; then drop the
-      `replace github.com/redundantdns/go-client => ../go-client-wt-acme`
-      line from `go.mod` and pin the pushed commit by pseudo-version
-      (`go get github.com/redundantdns/go-client@<commit>` then
-      `go mod tidy`), as the Terraform provider does. CI and the
-      Dockerfile cannot build while the replace is there (the build
-      context is this repository only).
-- [ ] While go-client is private, add the repository secret
-      `REDUNDANTDNS_READ_TOKEN` (fine-grained PAT, Contents: read on
-      go-client); remove it and `GOPRIVATE` once go-client is public.
+- [x] go-client's ACME methods merged (go-client #7) and pinned here by
+      pseudo-version (go-client is public: no token needed to fetch it).
 - [x] `make check test-conformance` green (fake mode), and the suite
       against a platform all-in-one (`RDNS_E2E=1`, platform branch
       `feat/acme-dns01`, fake provider and its nameservers): passed

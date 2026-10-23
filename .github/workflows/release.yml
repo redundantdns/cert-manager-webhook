@@ -3,8 +3,7 @@ name: release
 # On a v* tag: build and push the multi-arch image to ghcr (with SLSA
 # provenance and an SBOM attached), then package the Helm chart with the
 # image digest pinned and push it as an OCI artifact to
-# ghcr.io/redundantdns/charts/cert-manager-webhook. Needs
-# REDUNDANTDNS_READ_TOKEN while go-client is private.
+# ghcr.io/redundantdns/charts/cert-manager-webhook.
 on:
   push:
     tags: ["v*"]
@@ -51,9 +50,6 @@ jobs:
             org.opencontainers.image.licenses=Apache-2.0
           build-args: |
             VERSION=${{ github.ref_name }}
-            GOPRIVATE=github.com/redundantdns/*
-          secrets: |
-            netrc=machine github.com login x-access-token password ${{ secrets.REDUNDANTDNS_READ_TOKEN }}
           provenance: mode=max
           sbom: true
 

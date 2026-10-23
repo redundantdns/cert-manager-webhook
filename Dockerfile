@@ -7,15 +7,9 @@ FROM --platform=$BUILDPLATFORM golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe3166
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
-# While go-client is private: GOPRIVATE=github.com/redundantdns/* and a
-# build secret "netrc" (a read-only token) let go fetch it from git.
-ARG GOPRIVATE=""
-ENV GOPRIVATE=${GOPRIVATE}
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=secret,id=netrc,target=/root/.netrc,required=false \
-    go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \

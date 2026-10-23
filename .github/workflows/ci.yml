@@ -9,15 +9,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # go-client is private until it is published: skip the public proxy and
-  # checksum database for the redundantdns modules and let git fetch them
-  # with a read-only token (repository secret REDUNDANTDNS_READ_TOKEN, a
-  # fine-grained PAT with Contents: read on redundantdns/go-client), passed
-  # to git by the "Download modules" step only. Remove both once go-client
-  # is public.
-  GOPRIVATE: github.com/redundantdns/*
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -26,14 +17,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # The read token reaches git only through this step's environment
-      # (GIT_CONFIG_*), never the runner's global git config, so later
-      # steps (third-party actions included) cannot read it back.
-      - name: Download modules (private ones with the read token)
-        env:
-          GIT_CONFIG_COUNT: ${{ secrets.REDUNDANTDNS_READ_TOKEN != '' && '1' || '0' }}
-          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.REDUNDANTDNS_READ_TOKEN }}@github.com/redundantdns/.insteadOf
-          GIT_CONFIG_VALUE_0: https://github.com/redundantdns/
+      - name: Download modules
         run: go mod download
       - name: go vet
         run: go vet ./... && go vet -tags conformance ./...
@@ -65,11 +49,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - name: Download modules (private ones with the read token)
-        env:
-          GIT_CONFIG_COUNT: ${{ secrets.REDUNDANTDNS_READ_TOKEN != '' && '1' || '0' }}
-          GIT_CONFIG_KEY_0: url.https://x-access-token:${{ secrets.REDUNDANTDNS_READ_TOKEN }}@github.com/redundantdns/.insteadOf
-          GIT_CONFIG_VALUE_0: https://github.com/redundantdns/
+      - name: Download modules
         run: go mod download
       - run: make test-conformance
 
@@ -85,6 +65,3 @@ jobs:
           push: false
           build-args: |
             VERSION=ci
-            GOPRIVATE=github.com/redundantdns/*
-          secrets: |
-            netrc=machine github.com login x-access-token password ${{ secrets.REDUNDANTDNS_READ_TOKEN }}
